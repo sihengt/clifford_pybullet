@@ -196,15 +196,13 @@ class CliffordRobot(SimRobot):
             self.linkNameToID[linkName],
             physicsClientId=self.physicsClientId)
         
-        bodyState = p.getBasePositionAndOrientation(
-            self.robotID,
-            physicsClientId=self.physicsClientId)
+        world2body = self.getBasePositionOrientation()
         
         world2joint = p.multiplyTransforms(
             linkState[WORLD_LINK_FRAME_POSITION], linkState[WORLD_LINK_FRAME_ORIENTATION],
             linkFrame2Joint, [0,0,0,1])
         
-        body2world = p.invertTransform(bodyState[POSITION], bodyState[ORIENTATION])
+        body2world = p.invertTransform(world2body[POSITION], world2body[ORIENTATION])
         body2joint = p.multiplyTransforms(body2world[POSITION], body2world[ORIENTATION], 
                                           world2joint[POSITION], world2joint[ORIENTATION])
         
