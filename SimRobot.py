@@ -1,57 +1,29 @@
 import pybullet as p
 import numpy as np
+from utils.checkRobotExists import checkRobotExists
 
-def genParam(data,newParam=None,numSamples=1,genMean=False):
-    if newParam is None:
-        newParam = {}
-    for key in data:
-        if key == 'members':
-            newParam[key] = data[key].copy()
-        elif isinstance(data[key],dict):
-            newParam[key]={}
-            if 'members' in data[key]:
-                genParam(data[key],newParam[key],len(data[key]['members']),genMean=genMean)
-            else:
-                genParam(data[key],newParam[key],numSamples,genMean=genMean)
-        elif isinstance(data[key],list):
-            if genMean:
-                newParam[key] = (0.5*np.ones(numSamples)*(data[key][1]+data[key][0])).squeeze().tolist()
-            else:
-                newParam[key] = (np.random.rand(numSamples)*(data[key][1]-data[key][0])+data[key][0]).squeeze().tolist()
-        else:
-            newParam[key] = (np.ones(numSamples)*data[key]).squeeze().tolist()
-    return newParam
-    
-def checkRobotExists(func):
-    def decoratedFunc(*args, **kwargs):
-        if args[0].robotID == None:
-            return
-        return func(*args, **kwargs)
-    return decoratedFunc
-
-class simRobot(object):
+class SimRobot:
     def __init__(self,physicsClientId):
         self.physicsClientId=physicsClientId
         self.robotID = None
+        self.nJoints = None
         self.measuredJointIDs = []
 
     @checkRobotExists
     def reset(self,pose=[[0,0,0.5],[0,0,0,1]]):
         p.resetBasePositionAndOrientation(self.robotID, pose[0],pose[1],physicsClientId=self.physicsClientId)
-        nJoints = p.getNumJoints(self.robotID,physicsClientId=self.physicsClientId)
-        initialJointPositions = [(0,) for i in range(nJoints)]
-        initialJointVelocities = [(0,) for i in range(nJoints)]
-        p.resetJointStatesMultiDof(self.robotID,range(nJoints),initialJointPositions,initialJointVelocities,physicsClientId=self.physicsClientId)
+        initialJointPositions = [(0,) for i in range(self.nJoints)]
+        initialJointVelocities = [(0,) for i in range(self.nJoints)]
+        p.resetJointStatesMultiDof(self.robotID,range(self.nJoints),initialJointPositions,initialJointVelocities,physicsClientId=self.physicsClientId)
 
     @checkRobotExists
     def changeColor(self,color=None,tireKey='wheel',tireColor=None):
-        nJoints = p.getNumJoints(self.robotID,physicsClientId=self.physicsClientId)
         if color is None:
-            color = [0.6,0.1,0.1,1]
+            color = [0.6, 0.1, 0.1, 1]
         if tireColor is None:
-            tireColor = [0.15,0.15,0.15,1]
-        for i in range(-1,nJoints):
-            if i>-1 and tireKey in p.getJointInfo(self.robotID,i,physicsClientId=self.physicsClientId)[12].decode('UTF-8'):
+            tireColor = [0.15, 0.15, 0.15, 1]
+        for i in range(-1, self.nJoints):
+            if i > -1 and tireKey in p.getJointInfo(self.robotID,i,physicsClientId=self.physicsClientId)[12].decode('UTF-8'):
                 linkColor = tireColor
             else:
                 linkColor = color
@@ -59,21 +31,26 @@ class simRobot(object):
     
     @checkRobotExists
     def buildModelDict(self):
-        nJoints = p.getNumJoints(self.robotID,physicsClientId=self.physicsClientId)
+        """ Populates self.jointNameToID, self.linkNameToID and self.jointNames """
         self.jointNameToID = {}
         self.linkNameToID = {}
         self.jointNames = []
-        for i in range(nJoints):
-            JointInfo = p.getJointInfo(self.robotID,i,physicsClientId=self.physicsClientId)
-            self.jointNameToID[JointInfo[1].decode('UTF-8')] = JointInfo[0]
-            self.linkNameToID[JointInfo[12].decode('UTF-8')] = JointInfo[0]
-            self.jointNames.append(JointInfo[1].decode('UTF-8'))
+
+        # Iterate through each joint
+        JOINT_INDEX = 0
+        JOINT_NAME = 1
+        LINK_NAME = 12
+
+        for i_joint in range(self.nJoints):
+            jointInfo = p.getJointInfo(self.robotID, i_joint, physicsClientId=self.physicsClientId)
+            self.jointNameToID[jointInfo[JOINT_NAME].decode('UTF-8')] = jointInfo[JOINT_INDEX]
+            self.linkNameToID[jointInfo[LINK_NAME].decode('UTF-8')] = jointInfo[JOINT_INDEX]
+            self.jointNames.append(jointInfo[JOINT_NAME].decode('UTF-8'))
 
     @checkRobotExists
     def measureJoints(self):
         if self.measuredJointIDs is None:
-            nJoints = p.getNumJoints(self.robotID,physicsClientId=self.physicsClientId)
-            self.measuredJointIDs = list(range(nJoints))
+            self.measuredJointIDs = list(range(self.nJoints))
         jointStates = p.getJointStates(self.robotID,self.measuredJointIDs,physicsClientId=self.physicsClientId)
         if jointStates is None:
             return []
