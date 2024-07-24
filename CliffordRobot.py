@@ -9,8 +9,10 @@ class CliffordRobot(SimRobot):
     def __init__(self, physicsClientId=0):
         super().__init__(physicsClientId)
         self.sdfPath = os.path.join(cliford_dir,'clifford.sdf')
-        self.tireNames = ['frwheel2tire','flwheel2tire','brwheel2tire','blwheel2tire']
-        self.steerJointNames = ['axle2frwheel','axle2brwheel','axle2flwheel','axle2blwheel']
+        self.tireNames = ['frtire','fltire','brtire','bltire']
+        self.wheelNames = ['fr_wheel', 'fl_wheel', 'br_wheel', 'bl_wheel']
+        self.wheel2TireJoints = ['frwheel2tire','flwheel2tire','brwheel2tire','blwheel2tire']
+        self.axle2WheelJoints = ['axle2frwheel','axle2brwheel','axle2flwheel','axle2blwheel']
     @checkRobotExists
     def reset(self, pose=((0,0,0.25),(0,0,0,1))):
         p.resetBasePositionAndOrientation(
@@ -170,13 +172,11 @@ class CliffordRobot(SimRobot):
 
     @checkRobotExists
     def changeColor(self, color=None):
-        n_joints = p.getNumJoints(self.robotID, physicsClientId=self.physicsClientId)
         if color is None:
             color = [0.6,0.1,0.1,1]
-        for i in range(-1, n_joints):
+        for i in range(-1, self.nJoints):
             p.changeVisualShape(self.robotID, i, rgbaColor=color, specularColor=color, physicsClientId=self.physicsClientId)
-        tires = ['frtire','fltire','brtire','bltire']
-        for tire in tires:
+        for tire in self.tireNames:
             p.changeVisualShape(self.robotID,self.linkNameToID[tire],rgbaColor=[0.15,0.15,0.15,1],specularColor=[0.15,0.15,0.15,1],physicsClientId=self.physicsClientId)
     
     @checkRobotExists
@@ -307,7 +307,7 @@ class CliffordRobot(SimRobot):
     @checkRobotExists
     def drive(self,driveSpeed):
         driveSpeed = max(min(driveSpeed,1),-1)
-        driveJoints = [self.jointNameToID[name] for name in self.tireNames]
+        driveJoints = [self.jointNameToID[name] for name in self.wheel2TireJoints]
         
         scale = self.driveParams['scale']
         velocityGain = self.driveParams['velocityGain']
@@ -338,7 +338,7 @@ class CliffordRobot(SimRobot):
         frontAngle = max(min(frontAngle,1),-1)
         rearAngle = max(min(rearAngle,1),-1)
 
-        steerJoints = [self.jointNameToID[name] for name in self.steerJointNames]
+        steerJoints = [self.jointNameToID[name] for name in self.axle2WheelJoints]
         steerAngles = [-frontAngle * self.steerParams['scale'] + self.steerParams['frontTrim'],
                        rearAngle * self.steerParams['scale'] + self.steerParams['backTrim']
                         ] * 2

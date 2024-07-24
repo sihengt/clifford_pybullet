@@ -5,13 +5,15 @@ import time
 import torch.nn.functional as F
 import torch
 
-class simController:
+POSITION = 0
+ORIENTATION = 1
+
+cam_params = {"pitch": -30, "dist": 0.8, "heading": -90}
+
+class SimController:
     # this class controls the simulation. It controls the terrain and robot, and returns data
-    def __init__(self,robot,terrain,simParams,camFollowBot=False,realtime=False,physicsClientId=0,stateProcessor=None):
+    def __init__(self, robot, terrain, simParams, camFollowBot=False, realtime=False, physicsClientId=0, stateProcessor=None):
         self.camFollowBot = camFollowBot
-        self.camPitch = -30
-        self.camDist = 0.8
-        self.camHeading = -90
         self.physicsClientId=physicsClientId
         self.terrain = terrain
         self.robot = robot
@@ -20,35 +22,48 @@ class simController:
         self.realtime = realtime
         self.stateProcessor = stateProcessor
 
-    # reset the robot
-    def resetRobot(self,doFall=True,pose=((0,0),(0,0,0,1))):
+    def resetRobot(self, doFall=True, pose=((0,0),(0,0,0,1))):
+        """
+        Resets robot to pose defined by input.
+        If no pose is provided, sets x, y to (0,0) and z to the height + 0.4m
+        Also resets parameters used in simulation. 
+        """
         realtime = self.realtime
         self.realtime = False
         self.controlLoopStep([0,0])
+
+        # pose[0] \in R^3 = height provided. Use height.
         if len(pose[0])>2:
             safeFallHeight = pose[0][2]
         else:
-            safeFallHeight = self.terrain.maxLocalHeight(pose[0],1)+0.4
-        self.robot.reset(((pose[0][0],pose[0][1],safeFallHeight),pose[1]))
+            safeFallHeight = self.terrain.maxLocalHeight(pose[POSITION], 1) + 0.4
+        
+        reset_pose = (
+            (pose[POSITION][0], pose[POSITION][1], safeFallHeight),
+            pose[ORIENTATION]
+        )
+        self.robot.reset(reset_pose)
+        
+        # Let the robot fall
         if doFall:
             fallSteps = int(np.ceil(self.simParams['resetFallTime']/self.simParams['simTimeStep']))
-            for i in range(fallSteps):
+            for _ in range(fallSteps):
                 self.stepSim()
+        
         self.termTracking = {}
         self.realtime = realtime
 
-    def controlLoopStep(self,driveCommand,useEulerState=False,useBodyVel=False):
+    def controlLoopStep(self, driveCommand, useEulerState=False, useBodyVel=False):
         throttle = driveCommand[0]
         steering = driveCommand[1:]
-        #if len(steering) == 1:
-        #    steering = steering[0]
         
         # getRobotState returns: position, orientation, velocity, jointstate.
         prevState = list(self.getRobotState(useBodyVel))
         self.robot.drive(throttle)
         self.robot.steer(steering)
-        for i in range(self.simParams['numStepsPerControl']):
+        for _ in range(self.simParams['numStepsPerControl']):
             self.stepSim()
+
         nextState = list(self.getRobotState(useBodyVel))
         termCheck = self.simTerminateCheck(nextState)
         if useEulerState:
@@ -66,17 +81,22 @@ class simController:
             return self.stateProcessor(prevState),driveCommand,self.stateProcessor(nextState),termCheck
 
     def getWeightDistribution(self):
+        NORMAL_FORCE = 9
         normalForces = []
-        for wheel in ['fr_wheel','fl_wheel','br_wheel','bl_wheel']:
-            contactPoint = p.getContactPoints(bodyA=self.robot.robotID,bodyB=self.terrain.terrainBody,
-                                linkIndexA = self.robot.linkNameToID[wheel],
-                                physicsClientId=self.physicsClientId)
+        # wheelNames = ['fr_wheel', 'fl_wheel', 'br_wheel', 'bl_wheel']
+        for wheel in self.robot.wheelNames:
+            contactPoint = p.getContactPoints(
+                bodyA=self.robot.robotID,
+                bodyB=self.terrain.terrainBody,
+                linkIndexA = self.robot.linkNameToID[wheel],
+                physicsClientId=self.physicsClientId)
+            
             normalForce = 0
-            for i in range(len(contactPoint)):
-                normalForce+=contactPoint[i][9]
+            for i_contact in range(len(contactPoint)):
+                normalForce += contactPoint[i_contact][NORMAL_FORCE]
             normalForces.append(normalForce)
-        print(normalForces)
 
+        print(normalForces)
 
     def getRobotState(self,useBodyVel=False):
         pos,orien = self.robot.getBasePositionOrientation()
@@ -88,16 +108,31 @@ class simController:
         return pos,orien,vel,jointState
     
     def stepSim(self):
+        """
+        Takes one step in the simulator.
+        Sets camera parameters if camera is following the car.
+        
+        Updates self.lastTimeStep to prevent simulation from attempting rapid catch-up.
+        """
         p.stepSimulation(physicsClientId=self.physicsClientId)
         if self.camFollowBot:
-            pos,_,heading,tilt = self.robot.getBasePositionOrientation(calcHeadingTilt=True)
-            p.resetDebugVisualizerCamera(self.camDist,heading*180.0/np.pi+self.camHeading,self.camPitch,pos,physicsClientId=self.physicsClientId)
+            pos, _, heading, tilt = self.robot.getBasePositionOrientation(calcHeadingTilt=True)
+            
+            p.resetDebugVisualizerCamera(
+                cam_params.dist,
+                heading * 180.0/np.pi + cam_params.heading,
+                cam_params.pitch,
+                pos,
+                physicsClientId=self.physicsClientId
+            )
+        
         currTime = time.time()
         if not hasattr(self,'lastTimeStep'):
             self.lastTimeStep = currTime
-        self.lastTimeStep = max(self.lastTimeStep,currTime-self.simParams['simTimeStep'])
+        self.lastTimeStep = max(self.lastTimeStep, currTime - self.simParams['simTimeStep'])
+        
         if self.realtime:
-            time.sleep(max(0,self.lastTimeStep+self.simParams['simTimeStep']-currTime))
+            time.sleep(max(0, self.lastTimeStep + self.simParams['simTimeStep'] - currTime))
         self.lastTimeStep += self.simParams['simTimeStep']
         if hasattr(self,'screenRecorder'):
             self.screenRecorder.simStep()
