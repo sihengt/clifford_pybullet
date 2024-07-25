@@ -1,11 +1,10 @@
-import pybullet as p
-import numpy as np
 import torch
-from pybulletSim.randomTerrain import terrain
+import numpy as np
+from Terrain import Terrain
 
-class testEnv(terrain):
-    def __init__(self,terrainParams,physicsClientId=0):
-        super().__init__(terrainParams,physicsClientId)
+class TestEnv(Terrain):
+    def __init__(self, terrainParams, physicsClientId=0):
+        super().__init__(terrainParams, physicsClientId)
         self.generate()
 
     # generate new terrain.
