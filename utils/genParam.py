@@ -32,7 +32,8 @@ def genParam(data, new_param=None, num_samples=1, gen_mean=False):
                 new_param[key] = [getMean(lower_bound, upper_bound)] * num_samples
             else:
                 new_param[key] = getUniformRandomSamples(lower_bound, upper_bound, num_samples).tolist()
+        
         else:
-            new_param[key] = [value] * num_samples
+            new_param[key] = value if num_samples == 1 else [value] * num_samples
 
     return new_param

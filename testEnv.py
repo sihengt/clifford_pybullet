@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from Terrain import Terrain
+from .Terrain import Terrain
 
 class TestEnv(Terrain):
     def __init__(self, terrainParams, physicsClientId=0):

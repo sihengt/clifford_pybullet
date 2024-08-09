@@ -1,7 +1,11 @@
 import pybullet as p
 import os
-from SimRobot import SimRobot
-from utils.checkRobotExists import checkRobotExists
+
+from .SimRobot import SimRobot
+from .utils.checkRobotExists import checkRobotExists
+
+import numpy as np
+import torch
 
 cliford_dir = os.path.join(os.path.dirname(__file__), "clifford")
 
@@ -257,7 +261,7 @@ class CliffordRobot(SimRobot):
     @checkRobotExists
     def setSuspensionParam(self,suspensionParams):
         springJointNames = ['brslower2upper','blslower2upper','frslower2upper','flslower2upper']
-        
+
         # If only one value provided, assume same values for all suspension.
         if not 'members' in suspensionParams or len(suspensionParams['members']) == 1:
             for key in suspensionParams:
@@ -303,7 +307,7 @@ class CliffordRobot(SimRobot):
                 physicsClientId=self.physicsClientId)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
     
     @checkRobotExists
-    def drive(self,driveSpeed):
+    def drive(self, driveSpeed):
         driveSpeed = max(min(driveSpeed,1),-1)
         driveJoints = [self.jointNameToID[name] for name in self.wheel2TireJoints]
         
@@ -313,8 +317,8 @@ class CliffordRobot(SimRobot):
 
         targetVelocities = [driveSpeed * scale] * len(driveJoints)
         velocityGains = [velocityGain] * len(driveJoints)
-        forces = [maxForce]*len(driveJoints),
-        
+        forces = [maxForce] * len(driveJoints)
+                
         p.setJointMotorControlArray(
             self.robotID,
             driveJoints,
@@ -325,9 +329,9 @@ class CliffordRobot(SimRobot):
             physicsClientId=self.physicsClientId)
 
     @checkRobotExists
-    def steer(self,angle):
+    def steer(self, angle):
         # Convert angle into a list
-        if not isinstance(angle, list):
+        if not isinstance(angle, (list, torch.Tensor, np.ndarray)):
             angle = [angle]
 
         # Getting front / rear angles, and clamping
@@ -342,9 +346,9 @@ class CliffordRobot(SimRobot):
                         ] * 2
 
         n_steerAngles = len(steerAngles)
-        positionGains = self.steerParams['positionGain'] * n_steerAngles
-        velocityGains = self.steerParams['velocityGain'] * n_steerAngles
-        maxForces = self.steerParams['maxForce'] * n_steerAngles
+        positionGains   = [self.steerParams['positionGain']] * n_steerAngles
+        velocityGains   = [self.steerParams['velocityGain']] * n_steerAngles
+        maxForces       = [self.steerParams['maxForce']] * n_steerAngles
 
         p.setJointMotorControlArray(self.robotID,
                                     steerJoints,

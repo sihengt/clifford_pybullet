@@ -55,7 +55,7 @@ class SimController:
             for _ in range(fallSteps):
                 self.stepSim()
         
-        self.termTracking = {}
+        self.termTracking = {'stopMoveCount': 0, 'flipped': 0}
         self.realtime = realtime
 
     def controlLoopStep(self, driveCommand, useEulerState=False, useBodyVel=False):
@@ -144,9 +144,9 @@ class SimController:
             pos, _, heading, tilt = self.robot.getBasePositionOrientation(calcHeadingTilt=True)
             
             p.resetDebugVisualizerCamera(
-                cam_params.dist,
-                heading * 180.0/np.pi + cam_params.heading,
-                cam_params.pitch,
+                cam_params["dist"],
+                heading * 180.0/np.pi + cam_params["heading"],
+                cam_params["pitch"],
                 pos,
                 physicsClientId=self.physicsClientId
             )
@@ -174,7 +174,8 @@ class SimController:
         p_sb, R_sb = robotState[0:2]
 
         # Check if robot has been stuck before OR if checks squared distance > than squared moveThreshold.
-        if ((p_sb[0] - self.termTracking['lastX']) ** 2 + (p_sb[1] - self.termTracking['lastY']) ** 2) \
+        if not 'lastX' in self.termTracking or\
+            ((p_sb[0] - self.termTracking['lastX']) ** 2 + (p_sb[1] - self.termTracking['lastY']) ** 2) \
         > self.moveThreshold ** 2:
             self.termTracking['lastX'] = p_sb[0]
             self.termTracking['lastY'] = p_sb[1]

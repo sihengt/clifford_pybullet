@@ -1,6 +1,6 @@
 import pybullet as p
 import numpy as np
-from utils.checkRobotExists import checkRobotExists
+from .utils.checkRobotExists import checkRobotExists
 
 POSITION = 0
 ORIENTATION = 1
@@ -8,7 +8,7 @@ LINEAR_VELOCITY = 0
 ANGULAR_VELOCITY = 1
 
 class SimRobot:
-    def __init__(self,physicsClientId):
+    def __init__(self, physicsClientId):
         self.physicsClientId=physicsClientId
         self.robotID = None
         self.nJoints = None
