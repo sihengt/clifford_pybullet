@@ -14,7 +14,7 @@ class Terrain:
         grid = np.arange(dim) * scale
         return grid - grid.mean()
 
-    def setParams(self,terrainParams):
+    def setParams(self, terrainParams):
         """
         Creates the map grid via mapWidth / Length, scales the coordinates according to scale, and centers coordinates 
         around zero.
@@ -23,17 +23,27 @@ class Terrain:
         """
         self.terrainParams = terrainParams
         # define map grid
-        self.gridX = self.createGrid(self.terrainParams['mapWidth'], self.terrainParams['mapScale'])
-        self.gridY = self.createGrid(self.terrainParams['mapLength'], self.terrainParams['mapScale'])
+        x = self.createGrid(self.terrainParams['mapWidth'], self.terrainParams['mapScale'])
+        y = self.createGrid(self.terrainParams['mapLength'], self.terrainParams['mapScale'])
         
-        self.mapArea = (self.gridY[-1] - self.gridY[0]) * (self.gridX[-1] - self.gridX[0])
-        self.gridX, self.gridY = np.meshgrid(self.gridX, self.gridY, indexing='xy')
+        max_x, min_x = x[-1], x[0] 
+        max_y, min_y = x[-1], x[0] 
+
+        self.mapArea = (max_y - min_y) * (max_x - min_x)
         self.mapBounds = torch.tensor([
-            [self.gridX[0, 0]  , self.gridY[0, 0]],
-            [self.gridX[0, -1] , self.gridY[0, -1]],
-            [self.gridX[-1, 0] , self.gridY[-1, 0]],
-            [self.gridX[-1, -1], self.gridY[-1, -1]]
+            [min_x, min_y],
+            [max_x, min_y],
+            [min_x, max_y],
+            [max_x, max_y]
         ])
+
+        self.gridX, self.gridY = np.meshgrid(x, y, indexing='xy')
+
+        # TODO: kind of ugly way of getting the seed
+        if "seed" in terrainParams:
+            self.seed = terrainParams['seed']
+        else:
+            self.seed = None
 
     def updateTerrain(self, gridZIn):
         self.gridZ = np.copy(gridZIn)
@@ -48,7 +58,7 @@ class Terrain:
 
         # Replace current terrain IF it already exists
         if hasattr(self,'terrainShape'):
-            shapeArgs['replaceHeightfieldIndex']=self.terrainShape
+            shapeArgs['replaceHeightfieldIndex'] = self.terrainShape
         else:
             self.terrainOffset = (np.max(self.gridZ) + np.min(self.gridZ)) / 2.
         self.terrainShape = p.createCollisionShape(**shapeArgs)
@@ -63,7 +73,7 @@ class Terrain:
                 physicsClientId=self.physicsClientId
             )
 
-        # PyBullet has the origin (0,0,0) as ground level, we center the terrain around terrain offset.
+        # PyBullet has the origin (0, 0, 0) as ground level, we center the terrain around terrain offset.
         p.resetBasePositionAndOrientation(
             self.terrainBody,
             [0, 0, self.terrainOffset],
