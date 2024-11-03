@@ -10,13 +10,16 @@ import torch
 cliford_dir = os.path.join(os.path.dirname(__file__), "clifford")
 
 class CliffordRobot(SimRobot):
+    TIRE_NAMES = ['frtire','fltire','brtire','bltire']
+    WHEEL_NAMES = ['fr_wheel', 'fl_wheel', 'br_wheel', 'bl_wheel']
+    WHEEL_TO_TIRE_JOINTS = ['frwheel2tire','flwheel2tire','brwheel2tire','blwheel2tire']
+    AXLE_TO_WHEEL_JOINTS = ['axle2frwheel','axle2brwheel','axle2flwheel','axle2blwheel']
+    SPRING_JOINTS = ['brslower2upper','blslower2upper','frslower2upper','flslower2upper']
+
     def __init__(self, physicsClientId=0):
         super().__init__(physicsClientId)
         self.sdfPath = os.path.join(cliford_dir,'clifford.sdf')
-        self.tireNames = ['frtire','fltire','brtire','bltire']
-        self.wheelNames = ['fr_wheel', 'fl_wheel', 'br_wheel', 'bl_wheel']
-        self.wheel2TireJoints = ['frwheel2tire','flwheel2tire','brwheel2tire','blwheel2tire']
-        self.axle2WheelJoints = ['axle2frwheel','axle2brwheel','axle2flwheel','axle2blwheel']
+
     @checkRobotExists
     def reset(self, pose=((0,0,0.25),(0,0,0,1))):
         p.resetBasePositionAndOrientation(
@@ -33,6 +36,12 @@ class CliffordRobot(SimRobot):
 
     # Required after initialization to set parameters used by other functions
     def setParams(self, params, importHeight=10, **kwargs):
+        """
+        Takes params and sets sim robot with it. 
+
+        Args:
+            params(dict): dictionary of dictionary after YAML is parsed by getParams
+        """
         self.driveParams = params['drive']
         self.steerParams = params['steer']
 
@@ -104,25 +113,25 @@ class CliffordRobot(SimRobot):
                 # Disable control of all joints that have more than 1 DOF
                 if not self.isSingleDOFJoint(i_joint):
                     p.setJointMotorControlMultiDof(
-                        bodyUniqueId=self.robotID,
-                        jointIndex=i_joint,
-                        controlMode=p.POSITION_CONTROL,
-                        targetPosition=[0,0,0,1],
-                        positionGain=0,
-                        velocityGain=0,
-                        force=[0,0,0],
-                        physicsClientId=self.physicsClientId)
+                        bodyUniqueId    =   self.robotID,
+                        jointIndex      =   i_joint,
+                        controlMode     =   p.POSITION_CONTROL,
+                        targetPosition  =   [0, 0, 0, 1],
+                        positionGain    =   0,
+                        velocityGain    =   0,
+                        force           =   [0, 0, 0],
+                        physicsClientId =   self.physicsClientId)
         
         # Constraining back wheels
         c = p.createConstraint(self.robotID,
                                self.linkNameToID['blwheel'],
                                self.robotID,
                                self.linkNameToID['brwheel'],
-                               jointType=p.JOINT_GEAR,
-                               jointAxis=[0, 1, 0],
-                               parentFramePosition=[0, 0, 0],
-                               childFramePosition=[0, 0, 0],
-                               physicsClientId=self.physicsClientId)
+                               jointType            =   p.JOINT_GEAR,
+                               jointAxis            =   [0, 1, 0],
+                               parentFramePosition  =   [0, 0, 0],
+                               childFramePosition   =   [0, 0, 0],
+                               physicsClientId      =   self.physicsClientId)
         p.changeConstraint(c,
                            gearRatio=-1,
                            maxForce=10000,
@@ -134,11 +143,11 @@ class CliffordRobot(SimRobot):
                                self.linkNameToID['flwheel'],
                                self.robotID,
                                self.linkNameToID['frwheel'],
-                               jointType=p.JOINT_GEAR,
-                               jointAxis=[0, 1, 0],
-                               parentFramePosition=[0, 0, 0],
-                               childFramePosition=[0, 0, 0],
-                               physicsClientId=self.physicsClientId)
+                               jointType            =   p.JOINT_GEAR,
+                               jointAxis            =   [0, 1, 0],
+                               parentFramePosition  =   [0, 0, 0],
+                               childFramePosition   =   [0, 0, 0],
+                               physicsClientId      =   self.physicsClientId)
         p.changeConstraint(c,
                            gearRatio=-1,
                            maxForce=10000,
@@ -180,7 +189,7 @@ class CliffordRobot(SimRobot):
             color = [0.6,0.1,0.1,1]
         for i in range(-1, self.nJoints):
             p.changeVisualShape(self.robotID, i, rgbaColor=color, specularColor=color, physicsClientId=self.physicsClientId)
-        for tire in self.tireNames:
+        for tire in self.TIRE_NAMES:
             p.changeVisualShape(self.robotID,self.linkNameToID[tire],rgbaColor=[0.15,0.15,0.15,1],specularColor=[0.15,0.15,0.15,1],physicsClientId=self.physicsClientId)
     
     @checkRobotExists
@@ -259,64 +268,76 @@ class CliffordRobot(SimRobot):
             totalMass += linkMass
 
     @checkRobotExists
-    def setSuspensionParam(self,suspensionParams):
-        springJointNames = ['brslower2upper','blslower2upper','frslower2upper','flslower2upper']
+    def setSuspensionParam(self, suspension_params):
+        """
+        Checks 'members' within the suspension_params. If members is not specified in the .yaml, 
+        populate it with the default spring joints, and duplicates each value with the default 
+        number of spring joints.
 
-        # If only one value provided, assume same values for all suspension.
-        if not 'members' in suspensionParams or len(suspensionParams['members']) == 1:
-            for key in suspensionParams:
-                suspensionParams[key] = [suspensionParams[key]] * len(springJointNames)
-            suspensionParams['members'] = springJointNames
-        
-        for member, preload, springConstant, dampingconstant, lowerLimit, upperLimit in zip(
-            suspensionParams['members'],
-            suspensionParams['preload'],
-            suspensionParams['springConstant'],
-            suspensionParams['dampingconstant'],
-            suspensionParams['lowerLimit'],
-            suspensionParams['upperLimit']):
-            p.setJointMotorControl2(bodyUniqueId=self.robotID,
-                                    jointIndex=self.jointNameToID[member],
-                                    controlMode=p.POSITION_CONTROL,
-                                    targetPosition=lowerLimit - preload,
-                                    positionGain=springConstant,
-                                    velocityGain=dampingconstant,
-                                    physicsClientId=self.physicsClientId)
+        Loads parameters into simulation through setJointMotorControl2 and changeDynamics.
+
+        Args:
+            suspension_params (dict) : dictionary containing the following parameters:
+                1. 'preload'
+                2. 'springConstant'
+                3. 'dampingConstant'
+                4. 'lowerLimit': joint lower limit
+                5. 'upperLimit': joint upper limit
+        """
+        for key in suspension_params:
+            suspension_params[key] = [suspension_params[key]] * len(self.SPRING_JOINTS)
+            
+        # All joints will be controlled using the same POSITION_CONTROL
+        for member, preload, spring_constant, damping_constant, lower_limit, upper_limit in zip(
+            self.SPRING_JOINTS,
+            suspension_params['preload'],
+            suspension_params['springConstant'],
+            suspension_params['dampingconstant'],
+            suspension_params['lowerLimit'],
+            suspension_params['upperLimit']):
+
+            # Sets joint control to POSITION_CONTROL, and updates joint with gains.
+            p.setJointMotorControl2(bodyUniqueId    = self.robotID,
+                                    jointIndex      = self.jointNameToID[member],
+                                    controlMode     = p.POSITION_CONTROL,
+                                    targetPosition  = lower_limit - preload,
+                                    positionGain    = spring_constant,
+                                    velocityGain    = damping_constant,
+                                    physicsClientId = self.physicsClientId)
+            
+            # Changes the joint dynamics.
             p.changeDynamics(self.robotID,
                              self.jointNameToID[member],
-                             jointLowerLimit=lowerLimit,
-                             jointUpperLimit=upperLimit,
-                             physicsClientId=self.physicsClientId)
+                             jointLowerLimit    = lower_limit,
+                             jointUpperLimit    = upper_limit,
+                             physicsClientId    = self.physicsClientId)
 
     @checkRobotExists
-    def setTireContactParam(self,tireContactParam):
-        tireNames = ['frtire','fltire','brtire','bltire']
-        
-        # If only one value provided, assume same values for all tires.
-        if len(tireContactParam['members']) == 1:
-            for key in tireContactParam:
-                tireContactParam[key] = [tireContactParam[key]] * len(tireNames)
-            tireContactParam['members'] = tireNames
-        
-        for i_tire in range(len(tireContactParam['members'])):
+    def setTireContactParam(self,tire_contact_params):
+        for key in tire_contact_params:
+            tire_contact_params[key] = [tire_contact_params[key]] * len(self.TIRE_NAMES)
+            
+        for i_tire in range(len(self.TIRE_NAMES)):
             p.changeDynamics(
                 self.robotID,             
-                self.linkNameToID[tireContactParam['members'][i_tire]],             
-                lateralFriction=tireContactParam['lateralFriction'][i_tire],             
-                restitution=tireContactParam['restitution'][i_tire],             
-                physicsClientId=self.physicsClientId)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+                self.linkNameToID[self.TIRE_NAMES[i_tire]],             
+                lateralFriction =   tire_contact_params['lateralFriction'][i_tire],             
+                restitution     =   tire_contact_params['restitution'][i_tire],             
+                physicsClientId =   self.physicsClientId)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
     
     @checkRobotExists
     def drive(self, driveSpeed):
         driveSpeed = max(min(driveSpeed,1),-1)
-        driveJoints = [self.jointNameToID[name] for name in self.wheel2TireJoints]
+        driveJoints = [self.jointNameToID[name] for name in self.WHEEL_TO_TIRE_JOINTS]
         
         scale = self.driveParams['scale']
         velocityGain = self.driveParams['velocityGain']
         maxForce = self.driveParams['maxForce']
 
+        # rad/s
         targetVelocities = [driveSpeed * scale] * len(driveJoints)
         velocityGains = [velocityGain] * len(driveJoints)
+        # N
         forces = [maxForce] * len(driveJoints)
                 
         p.setJointMotorControlArray(
@@ -340,7 +361,7 @@ class CliffordRobot(SimRobot):
         frontAngle = max(min(frontAngle,1),-1)
         rearAngle = max(min(rearAngle,1),-1)
 
-        steerJoints = [self.jointNameToID[name] for name in self.axle2WheelJoints]
+        steerJoints = [self.jointNameToID[name] for name in self.AXLE_TO_WHEEL_JOINTS]
         steerAngles = [-frontAngle * self.steerParams['scale'] + self.steerParams['frontTrim'],
                        rearAngle * self.steerParams['scale'] + self.steerParams['backTrim']
                         ] * 2
