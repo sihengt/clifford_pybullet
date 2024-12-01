@@ -3,7 +3,7 @@ import os
 
 from .SimRobot import SimRobot
 from .utils.checkRobotExists import checkRobotExists
-
+from .utils.constants.pybulletIndices import LinkStateIndex, TransformsIndex
 import numpy as np
 import torch
 
@@ -79,22 +79,22 @@ class CliffordRobot(SimRobot):
         self.linkNameToID['base'] = -1
         self.recordInitialInertia()
 
-        # make closed chain
-        linkFrame2Joint ={}
-        linkFrame2Joint['upperSpring']  = [0, 0, 0]
-        linkFrame2Joint['outer']        = [0.23, 0, 0]
-        linkFrame2Joint['inner']        = [0.195, 0, 0]
-
-        self.addClosedChainConstraint('brsupper',linkFrame2Joint['upperSpring'])
-        self.addClosedChainConstraint('blsupper',linkFrame2Joint['upperSpring'])
-        self.addClosedChainConstraint('frsupper',linkFrame2Joint['upperSpring'])
-        self.addClosedChainConstraint('flsupper',linkFrame2Joint['upperSpring'])
-        self.addClosedChainConstraint('bri',linkFrame2Joint['inner'])
-        self.addClosedChainConstraint('bli',linkFrame2Joint['inner'])
-        self.addClosedChainConstraint('fri',linkFrame2Joint['inner'])
-        self.addClosedChainConstraint('fli',linkFrame2Joint['inner'])
-        self.addClosedChainConstraint('blo',linkFrame2Joint['outer'])
-        self.addClosedChainConstraint('flo',linkFrame2Joint['outer'])
+        # Adding constraints to make the robot closed chain.
+        linkFrame2Joint = {
+            'upperSpring': [0, 0, 0],
+            'outer': [0.23, 0, 0],
+            'inner': [0.195, 0, 0]
+        }
+        self.addClosedChainConstraint('brsupper', linkFrame2Joint['upperSpring'])
+        self.addClosedChainConstraint('blsupper', linkFrame2Joint['upperSpring'])
+        self.addClosedChainConstraint('frsupper', linkFrame2Joint['upperSpring'])
+        self.addClosedChainConstraint('flsupper', linkFrame2Joint['upperSpring'])
+        self.addClosedChainConstraint('bri', linkFrame2Joint['inner'])
+        self.addClosedChainConstraint('bli', linkFrame2Joint['inner'])
+        self.addClosedChainConstraint('fri', linkFrame2Joint['inner'])
+        self.addClosedChainConstraint('fli', linkFrame2Joint['inner'])
+        self.addClosedChainConstraint('blo', linkFrame2Joint['outer'])
+        self.addClosedChainConstraint('flo', linkFrame2Joint['outer'])
 
     def isSingleDOFJoint(self, jointIndex):
         JOINT_POSITION = 0
@@ -194,45 +194,66 @@ class CliffordRobot(SimRobot):
     
     @checkRobotExists
     def addClosedChainConstraint(self, linkName, linkFrame2Joint):
-        # Indices for getLinkState
-        LINK_WORLD_POSITION = 0
-        LINK_WORLD_ORIENTATION = 1
-        WORLD_LINK_FRAME_POSITION = 4       # vec3
-        WORLD_LINK_FRAME_ORIENTATION = 5    # vec4
-        
-        # Indices for transformations
-        POSITION = 0
-        ORIENTATION = 1
+        """
+        Adds constraint for link defined in linkName to its COM position, a cartesian offset 
+        defined in linkFrame2Joint.
 
+        Args:
+            linkName (string): name of link as defined in SDF.
+            linkFrame2Joint (list): R^3 cartesian offset
+        """
+        # Getting link state
         linkState = p.getLinkState(
             self.robotID,
             self.linkNameToID[linkName],
             physicsClientId=self.physicsClientId)
         
+        # Getting transformation from world frame to base link
         world2body = self.getBasePositionOrientation()
         
+        # Gets the transformation from origin {W} to the link's joint.
         world2joint = p.multiplyTransforms(
-            linkState[WORLD_LINK_FRAME_POSITION], linkState[WORLD_LINK_FRAME_ORIENTATION],
+            linkState[LinkStateIndex.WORLD_LINK_FRAME_POSITION],
+            linkState[LinkStateIndex.WORLD_LINK_FRAME_ORIENTATION],
             linkFrame2Joint, [0,0,0,1])
         
-        body2world = p.invertTransform(world2body[POSITION], world2body[ORIENTATION])
-        body2joint = p.multiplyTransforms(body2world[POSITION], body2world[ORIENTATION], 
-                                          world2joint[POSITION], world2joint[ORIENTATION])
+        # Transformation from base link to world
+        body2world = p.invertTransform(
+            world2body[TransformsIndex.POSITION],
+            world2body[TransformsIndex.ORIENTATION]
+        )
         
-        linkcm2world = p.invertTransform(linkState[LINK_WORLD_POSITION], 
-                                         linkState[LINK_WORLD_ORIENTATION])
-        linkcm2joint = p.multiplyTransforms(linkcm2world[POSITION], linkcm2world[ORIENTATION],
-                                            world2joint[POSITION], world2joint[ORIENTATION])
+        # base link -> world -> joint
+        body2joint = p.multiplyTransforms(
+            body2world[TransformsIndex.POSITION],
+            body2world[TransformsIndex.ORIENTATION], 
+            world2joint[TransformsIndex.POSITION],
+            world2joint[TransformsIndex.ORIENTATION]
+        )
+        
+        # link COM -> world
+        linkcm2world = p.invertTransform(
+            linkState[LinkStateIndex.LINK_WORLD_POSITION], 
+            linkState[LinkStateIndex.LINK_WORLD_ORIENTATION]
+        )
+        
+        # link COM -> joint
+        linkcm2joint = p.multiplyTransforms(
+            linkcm2world[TransformsIndex.POSITION],
+            linkcm2world[TransformsIndex.ORIENTATION],
+            world2joint[TransformsIndex.POSITION],
+            world2joint[TransformsIndex.ORIENTATION]
+        )
 
         p.createConstraint(
-            self.robotID,                   # parent body unique id
-            -1,                             # constraint to base
-            self.robotID,                   # child body unique id
-            self.linkNameToID[linkName],    # child link index
-            p.JOINT_POINT2POINT,            # joint type
-            [0,0,0],                        # joint axis
-            body2joint[POSITION],           # parent frame position (relative to parent CoM)
-            linkcm2joint[POSITION],         # child frame position (relative to child CoM)
+            self.robotID,                           # parent body unique id
+            -1,                                     # constraint to base
+            self.robotID,                           # child body unique id
+            self.linkNameToID[linkName],            # child link index
+            p.JOINT_POINT2POINT,                    # joint type
+            [0,0,0],                                # joint axis
+            body2joint[TransformsIndex.POSITION],   # parent frame position [base link -> joint]
+            linkcm2joint[TransformsIndex.POSITION], # child frame position [link COM -> joint]
             physicsClientId=self.physicsClientId)
 
     @checkRobotExists
