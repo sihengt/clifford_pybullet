@@ -1,5 +1,5 @@
 import numpy as np
-from Terrain import Terrain
+from .Terrain import Terrain
 from scipy.ndimage import gaussian_filter
 from scipy.interpolate import griddata
 from noise import pnoise2
@@ -72,7 +72,12 @@ class RandomRockyTerrain(Terrain):
     def randomSteps(self, numCells):
         centersX = np.random.uniform(size=numCells, low=self.gridX.min(), high=self.gridX.max())
         centersY = np.random.uniform(size=numCells, low=self.gridY.min(), high=self.gridY.max())
-        centersZ = self.perlinNoise(centersX, centersY, self.params["cellPerlinScale"], self.params["cellHeightScale"])
+        centersZ = self.perlinNoise(
+            centersX,
+            centersY,
+            self.terrainParams["cellPerlinScale"],
+            self.terrainParams["cellHeightScale"]
+        )
         
         return griddata(
             (centersX, centersY),       # points
