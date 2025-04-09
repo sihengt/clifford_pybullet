@@ -9,6 +9,7 @@ class Terrain:
     def __init__(self, terrainParams, physicsClientId=0):
         self.physicsClientId = physicsClientId
         self.setParams(terrainParams)
+        self.updateTerrain(np.zeros_like(self.gridX))
 
     def createGrid(self, dim, scale):
         grid = np.arange(dim) * scale
@@ -37,6 +38,7 @@ class Terrain:
 
     def updateTerrain(self, gridZIn):
         self.gridZ = np.copy(gridZIn)
+
         shapeArgs = {
             'shapeType'             : p.GEOM_HEIGHTFIELD,
             'meshScale'             : [self.terrainParams['mapScale'], self.terrainParams['mapScale'], 1],
@@ -47,14 +49,15 @@ class Terrain:
         }
 
         # Replace current terrain IF it already exists
-        if hasattr(self,'terrainShape'):
-            shapeArgs['replaceHeightfieldIndex']=self.terrainShape
+        if hasattr(self, 'terrainShape'):
+            shapeArgs['replaceHeightfieldIndex'] = self.terrainShape
         else:
             self.terrainOffset = (np.max(self.gridZ) + np.min(self.gridZ)) / 2.
-        self.terrainShape = p.createCollisionShape(**shapeArgs)
 
+        self.terrainShape = p.createCollisionShape(**shapeArgs)
+        
         if not hasattr(self,'terrainBody'):
-            self.terrainBody  = p.createMultiBody(0, self.terrainShape, physicsClientId=self.physicsClientId)
+            self.terrainBody = p.createMultiBody(0, self.terrainShape, physicsClientId=self.physicsClientId)
             p.changeVisualShape(
                 self.terrainBody,                       # objectUniqueID
                 -1,                                     # linkIndex
