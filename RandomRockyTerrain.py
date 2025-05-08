@@ -9,16 +9,16 @@ class RandomRockyTerrain(Terrain):
     This class handles the generation of random rocky terrain
     """
     # initialize terrain object
-    def __init__(self, terrainParams, physicsClientId=0, seed=None):
+    def __init__(self, terrainParams, physicsClientId=0):
         super().__init__(terrainParams, physicsClientId)
-        if seed:
-            np.random.seed(seed)
+        if self.seed:
+            np.random.seed(self.seed)
         self.generate()
 
     # generate new terrain.
     def generate(self):
         gridZ = np.zeros_like(self.gridX)
-
+    
         # Generate random blocks using Perlin Noise
         numCells = int(self.mapArea / self.terrainParams['averageAreaPerCell'])
         blockHeights = self.randomSteps(numCells)

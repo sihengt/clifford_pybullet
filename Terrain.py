@@ -4,16 +4,40 @@ import torch
 
 class Terrain:
     """
-    parent class for random terrain generation
+    Parent class for Terrain Generation
     """
     def __init__(self, terrainParams, physicsClientId=0):
+        """
+        Initializes PyBullet Terrain. Calls two functions:
+            setParams
+            updateTerrain
+        """
+        self.seed = None
         self.physicsClientId = physicsClientId
         self.setParams(terrainParams)
         self.updateTerrain(np.zeros_like(self.gridX))
 
-    def createGrid(self, dim, scale):
-        grid = np.arange(dim) * scale
-        return grid - grid.mean()
+    def createGrid(self, map_width, map_length, scale):
+        """
+        Creates a map grid based on the width / length and the scale of the map.
+        Populates self.gridX, self.gridY.
+
+        Params:
+            map_width: 
+            map_length:
+            map_scale:
+        """
+        
+        # Creating range of actual map values according to scale, and zero centering it so (0,0) is at the center.
+        grid_x = np.arange(map_width) * scale
+        grid_x = grid_x - grid_x.mean()
+
+        grid_y = np.arange(map_length) * scale
+        grid_x = grid_y - grid_y.mean()
+
+        self.gridX, self.gridY = np.meshgrid(grid_x, grid_y, indexing='xy')
+
+        return self.gridX, self.gridY
 
     def setParams(self, terrainParams):
         """
@@ -23,12 +47,13 @@ class Terrain:
         Populates self.gridX, self.gridY, self.mapArea and self.mapBounds.
         """
         self.terrainParams = terrainParams
-        # define map grid
-        x = self.createGrid(self.terrainParams['mapWidth'], self.terrainParams['mapScale'])
-        y = self.createGrid(self.terrainParams['mapLength'], self.terrainParams['mapScale'])
         
-        max_x, min_x = x[-1], x[0] 
-        max_y, min_y = x[-1], x[0] 
+        # Create map grid (function automatically populates self.gridX and self.gridY)
+        self.createGrid(self.terrainParams['mapWidth'], self.terrainParams['mapLength'], self.terrainParams['mapScale'])
+        
+        # Setting map bounds and calculating area of map
+        max_x, min_x = np.max(self.X), np.min(self.X) 
+        max_y, min_y = np.max(self.Y), np.min(self.Y)
 
         self.mapArea = (max_y - min_y) * (max_x - min_x)
         self.mapBounds = torch.tensor([
@@ -38,17 +63,12 @@ class Terrain:
             [max_x, max_y]
         ])
 
-        self.gridX, self.gridY = np.meshgrid(x, y, indexing='xy')
-
-        # TODO: kind of ugly way of getting the seed
+        # If there's a seed option, we include a seed as well. This is for random generation.
         if "seed" in terrainParams:
             self.seed = terrainParams['seed']
-        else:
-            self.seed = None
 
     def updateTerrain(self, gridZIn):
         self.gridZ = np.copy(gridZIn)
-
         shapeArgs = {
             'shapeType'             : p.GEOM_HEIGHTFIELD,
             'meshScale'             : [self.terrainParams['mapScale'], self.terrainParams['mapScale'], 1],
@@ -58,15 +78,18 @@ class Terrain:
             'physicsClientId'       : self.physicsClientId
         }
 
-        # Replace current terrain IF it already exists
+        # Replace current terrain if it already exists
         if hasattr(self, 'terrainShape'):
             shapeArgs['replaceHeightfieldIndex'] = self.terrainShape
-        else:
-            self.terrainOffset = (np.max(self.gridZ) + np.min(self.gridZ)) / 2.
-
-        self.terrainShape = p.createCollisionShape(**shapeArgs)
         
-        if not hasattr(self,'terrainBody'):
+        # For centering terrain.
+        self.terrainOffset = (np.max(self.gridZ) + np.min(self.gridZ)) / 2.
+        
+        # Creates shape and updates ID of terrainShape
+        self.terrainShape = p.createCollisionShape(**shapeArgs)
+
+        # If terrain hasn't been instantiated, create it:
+        if not hasattr(self, 'terrainBody'):
             self.terrainBody = p.createMultiBody(0, self.terrainShape, physicsClientId=self.physicsClientId)
             p.changeVisualShape(
                 self.terrainBody,                       # objectUniqueID

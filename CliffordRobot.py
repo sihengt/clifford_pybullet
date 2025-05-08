@@ -298,7 +298,7 @@ class CliffordRobot(SimRobot):
         tireNames = ['frtire','fltire','brtire','bltire']
         
         # If only one value provided, assume same values for all tires.
-        if len(tireContactParam['members']) == 1:
+        if not 'members' in tireContactParam or len(tireContactParam['members']) == 1:
             for key in tireContactParam:
                 tireContactParam[key] = [tireContactParam[key]] * len(tireNames)
             tireContactParam['members'] = tireNames
