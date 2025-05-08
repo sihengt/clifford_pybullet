@@ -13,16 +13,19 @@ def getUniformRandomSamples(lower_bound, upper_bound, num_samples):
 # as 'members', which are handled later. Look at setSuspensionParam as an example.
 def genParam(data, new_param=None, num_samples=1, gen_mean=False):
     """
-    Recursively parses through a yaml
+    Iterates through a YAML file read into a dictionary and recursively generates a dictionary of parameters.
+    If the YAML file does not contain lists [min_value, max_value] or multiple members, then the function essentially
+    reconstructs the same dictionary file.
 
-    Args:
-        data (dict): generated from yaml file containing parameters
-        new_param ()
-        num_samples (int)
-        gen_mean (bool): if true, 
+    This function was used to construct different sets of parameters for domain randomization.
+
+    Params:
+        data: sub-dictionary of YAML file we're parsing.
+        new_param: sub-dictionary to populate.
+        num_samples: for use when multiple members are specified.
+        gen_mean: if True, uses the mean of the minimum and maximum values to generate parameters. If not, uniformly 
+        samples between [min, max]
     """
-
-    # At first function call, new_param doesn't exist. Create a dictionary to pass through calls.
     if new_param is None:
         new_param = {}
     

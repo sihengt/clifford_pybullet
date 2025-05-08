@@ -9,10 +9,10 @@ class RandomRockyTerrain(Terrain):
     This class handles the generation of random rocky terrain
     """
     # initialize terrain object
-    def __init__(self, terrainParams, physicsClientId=0):
+    def __init__(self, terrainParams, physicsClientId=0, seed=None):
         super().__init__(terrainParams, physicsClientId)
-        if self.seed:
-            np.random.seed(self.seed)
+        if seed:
+            np.random.seed(seed)
         self.generate()
 
     # generate new terrain.

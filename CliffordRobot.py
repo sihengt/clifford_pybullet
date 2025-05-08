@@ -10,16 +10,16 @@ import torch
 cliford_dir = os.path.join(os.path.dirname(__file__), "clifford")
 
 class CliffordRobot(SimRobot):
-    TIRE_NAMES = ['frtire','fltire','brtire','bltire']
-    WHEEL_NAMES = ['fr_wheel', 'fl_wheel', 'br_wheel', 'bl_wheel']
-    WHEEL_TO_TIRE_JOINTS = ['frwheel2tire','flwheel2tire','brwheel2tire','blwheel2tire']
-    AXLE_TO_WHEEL_JOINTS = ['axle2frwheel','axle2brwheel','axle2flwheel','axle2blwheel']
-    SPRING_JOINTS = ['brslower2upper','blslower2upper','frslower2upper','flslower2upper']
-
-    def __init__(self, physicsClientId=0):
+    def __init__(self, robot_params, physicsClientId=0):
         super().__init__(physicsClientId)
         self.sdfPath = os.path.join(cliford_dir,'clifford.sdf')
-
+        self.tireNames = ['frtire','fltire','brtire','bltire']
+        self.wheelNames = ['fr_wheel', 'fl_wheel', 'br_wheel', 'bl_wheel']
+        self.wheel2TireJoints = ['frwheel2tire','flwheel2tire','brwheel2tire','blwheel2tire']
+        self.axle2WheelJoints = ['axle2frwheel','axle2brwheel','axle2flwheel','axle2blwheel']
+        
+        self.setParams(robot_params)
+    
     @checkRobotExists
     def reset(self, pose=((0,0,0.25),(0,0,0,1))):
         p.resetBasePositionAndOrientation(
@@ -35,6 +35,7 @@ class CliffordRobot(SimRobot):
             physicsClientId=self.physicsClientId)
 
     # Required after initialization to set parameters used by other functions
+    # TODO: is it possible to make this part of the constructor, since the class would be useless otherwise?
     def setParams(self, params, importHeight=10, **kwargs):
         """
         Takes params and sets sim robot with it. 
@@ -197,6 +198,16 @@ class CliffordRobot(SimRobot):
         """
         Adds constraint for link defined in linkName to its COM position, a cartesian offset 
         defined in linkFrame2Joint.
+        
+        # Indices for getLinkState
+        LINK_WORLD_POSITION = 0             # Cartesian position of COM
+        LINK_WORLD_ORIENTATION = 1          # Cartesian orientation of COM
+        WORLD_LINK_FRAME_POSITION = 4       # World position of URDF link frame
+        WORLD_LINK_FRAME_ORIENTATION = 5    # World orientation of URDF link frame
+        
+        # Indices for transformations
+        POSITION = 0
+        ORIENTATION = 1
 
         Args:
             linkName (string): name of link as defined in SDF.
@@ -211,7 +222,7 @@ class CliffordRobot(SimRobot):
         # Getting transformation from world frame to base link
         world2body = self.getBasePositionOrientation()
         
-        # Gets the transformation from origin {W} to the link's joint.
+        # Multiplies world position of URDF link with world position of link frame to joint (typically an offset)
         world2joint = p.multiplyTransforms(
             linkState[LinkStateIndex.WORLD_LINK_FRAME_POSITION],
             linkState[LinkStateIndex.WORLD_LINK_FRAME_ORIENTATION],
