@@ -72,9 +72,10 @@ class SimController:
         # getRobotState returns: position_b, orientation_b, velocity_s, jointstate.
         prevState = list(self.getRobotState(useBodyVel))
 
+        # TODO: we need to rethink design here.
         # Drive / steer for numStepsPerControl steps within the simulator.
-        self.robot.drive(throttle)
-        self.robot.steer(steering)
+        self.robot.driveAtVelocity(throttle)
+        self.robot.steerAtAngle(steering)
         for _ in range(self.simParams['numStepsPerControl']):
             self.stepSim()
 

@@ -313,16 +313,45 @@ class CliffordRobot(SimRobot):
     
     @checkRobotExists
     def drive(self, driveSpeed):
+        """
+        Drives Clifford according to driveSpeed. driveSpeed will be clamped to be a value [-1, 1]. This value is 
+        directly converted into a velocity.
+        """
         driveSpeed = max(min(driveSpeed,1),-1)
         driveJoints = [self.jointNameToID[name] for name in self.wheel2TireJoints]
         
-        scale = self.driveParams['scale']
-        velocityGain = self.driveParams['velocityGain']
-        maxForce = self.driveParams['maxForce']
+        scale           = self.driveParams['scale']
+        velocityGain    = self.driveParams['velocityGain']
+        maxForce        = self.driveParams['maxForce']
 
-        targetVelocities = [driveSpeed * scale] * len(driveJoints)
-        velocityGains = [velocityGain] * len(driveJoints)
-        forces = [maxForce] * len(driveJoints)
+        targetVelocities    = [driveSpeed * scale] * len(driveJoints)
+        velocityGains       = [velocityGain] * len(driveJoints)
+        forces              = [maxForce] * len(driveJoints)
+                
+        p.setJointMotorControlArray(
+            self.robotID,
+            driveJoints,
+            p.VELOCITY_CONTROL,
+            targetVelocities=targetVelocities,
+            velocityGains=velocityGains,
+            forces=forces,
+            physicsClientId=self.physicsClientId)
+
+    @checkRobotExists
+    def driveAtVelocity(self, drive_velocity):
+        """
+        Drives Clifford according to driveSpeed. driveSpeed will be clamped to be a value [-1, 1]. This value is 
+        directly converted into a velocity.
+        """
+        driveJoints = [self.jointNameToID[name] for name in self.wheel2TireJoints]
+        
+        scale           = self.driveParams['scale']
+        velocityGain    = self.driveParams['velocityGain']
+        maxForce        = self.driveParams['maxForce']
+
+        targetVelocities    = [drive_velocity] * len(driveJoints)
+        velocityGains       = [velocityGain] * len(driveJoints)
+        forces              = [maxForce] * len(driveJoints)
                 
         p.setJointMotorControlArray(
             self.robotID,
@@ -348,6 +377,34 @@ class CliffordRobot(SimRobot):
         steerJoints = [self.jointNameToID[name] for name in self.axle2WheelJoints]
         steerAngles = [-frontAngle * self.steerParams['scale'] + self.steerParams['frontTrim'],
                        rearAngle * self.steerParams['scale'] + self.steerParams['backTrim']
+                        ] * 2
+
+        n_steerAngles = len(steerAngles)
+        positionGains   = [self.steerParams['positionGain']] * n_steerAngles
+        velocityGains   = [self.steerParams['velocityGain']] * n_steerAngles
+        maxForces       = [self.steerParams['maxForce']] * n_steerAngles
+
+        p.setJointMotorControlArray(self.robotID,
+                                    steerJoints,
+                                    p.POSITION_CONTROL,
+                                    targetPositions=steerAngles,
+                                    positionGains=positionGains,
+                                    velocityGains=velocityGains,
+                                    forces=maxForces,
+                                    physicsClientId=self.physicsClientId)
+
+    def steerAtAngle(self, angle):
+        # Convert angle into a list
+        if not isinstance(angle, (list, torch.Tensor, np.ndarray)):
+            angle = [angle]
+
+        # Getting front / rear angles, and clamping
+        frontAngle = angle[0]
+        rearAngle = angle[1] if len(angle) > 1 else 0
+
+        steerJoints = [self.jointNameToID[name] for name in self.axle2WheelJoints]
+        steerAngles = [-frontAngle + self.steerParams['frontTrim'],
+                       rearAngle  + self.steerParams['backTrim']
                         ] * 2
 
         n_steerAngles = len(steerAngles)

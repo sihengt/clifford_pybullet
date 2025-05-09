@@ -52,8 +52,8 @@ class Terrain:
         self.createGrid(self.terrainParams['mapWidth'], self.terrainParams['mapLength'], self.terrainParams['mapScale'])
         
         # Setting map bounds and calculating area of map
-        max_x, min_x = np.max(self.X), np.min(self.X) 
-        max_y, min_y = np.max(self.Y), np.min(self.Y)
+        max_x, min_x = np.max(self.gridX), np.min(self.gridX) 
+        max_y, min_y = np.max(self.gridY), np.min(self.gridY)
 
         self.mapArea = (max_y - min_y) * (max_x - min_x)
         self.mapBounds = torch.tensor([
