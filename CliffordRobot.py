@@ -340,8 +340,10 @@ class CliffordRobot(SimRobot):
     @checkRobotExists
     def driveAtVelocity(self, drive_velocity):
         """
-        Drives Clifford according to driveSpeed. driveSpeed will be clamped to be a value [-1, 1]. This value is 
-        directly converted into a velocity.
+        Drives Clifford according to drive_velocity.
+
+        Params: 
+            drive_velocity: desired velocity to drive the vehicle at
         """
         driveJoints = [self.jointNameToID[name] for name in self.wheel2TireJoints]
         
@@ -404,9 +406,9 @@ class CliffordRobot(SimRobot):
 
         steerJoints = [self.jointNameToID[name] for name in self.axle2WheelJoints]
         steerAngles = [-frontAngle + self.steerParams['frontTrim'],
-                       rearAngle  + self.steerParams['backTrim']
+                       -rearAngle  + self.steerParams['backTrim']
                         ] * 2
-
+        
         n_steerAngles = len(steerAngles)
         positionGains   = [self.steerParams['positionGain']] * n_steerAngles
         velocityGains   = [self.steerParams['velocityGain']] * n_steerAngles

@@ -64,15 +64,17 @@ class SimController:
         This function stores prevState BEFORE controls, and nextState AFTER controls, with an optional stateProcessor 
         decorator if needed.
 
+        Params:
+            driveCommand (throttle, front_angle, rear_angle) OR (throttle, angle)
         Returns:
             [prevState, driveCommand, nextState, termCheck]
         """
         throttle = driveCommand[0]
-        steering = driveCommand[1:] # generally front_steer / rear_steer
-        # getRobotState returns: position_b, orientation_b, velocity_s, jointstate.
+        steering = driveCommand[1:]
+        
+        # prevState: [pose, ori_quat, lin/ang velocity (R6), jointstate (empty unless specified).]
         prevState = list(self.getRobotState(useBodyVel))
 
-        # TODO: we need to rethink design here.
         # Drive / steer for numStepsPerControl steps within the simulator.
         self.robot.driveAtVelocity(throttle)
         self.robot.steerAtAngle(steering)
@@ -88,8 +90,7 @@ class SimController:
             prevState[1] = p.getEulerFromQuaternion(prevState[1])
             nextState[1] = p.getEulerFromQuaternion(nextState[1])
         
-        # Converting every element in list to lists (some are tuples)
-        # TODO: why don't we just get them to lists of lists to begin with?
+        # Converting every element in list to lists (those returned by pybullet are tuples)
         prevState = [list(item) for item in prevState]
         nextState = [list(item) for item in nextState]
         
@@ -122,15 +123,21 @@ class SimController:
 
     def getRobotState(self, useBodyVel=False):
         """
-        Returns robot state in following format:
-            [world2body_pos, world2body_orien, vel(body / world), jointState(joint positions, joint velocities)]
+        Returns:
+            [world2body_pos in R3
+             world2body_orien in R4 (quaternions)
+             vel(body / world) in R6 (v_x, v_y, v_z, w_x, w_y, w_z)
+             jointState(joint positions, joint velocities): t
         """
         world2body_pos, world2body_orien = self.robot.getBasePositionOrientation()
         if useBodyVel:
             vel = self.robot.getBaseVelocity_body()
         else:
             vel = self.robot.getBaseVelocity_world()
+
+        # If certain joints were set to be watched by the robot this will be a nonempty list.
         jointState = self.robot.measureJoints()
+        
         return world2body_pos, world2body_orien, vel, jointState
     
     def stepSim(self):
@@ -189,8 +196,6 @@ class SimController:
 
         # Check if robot has flipped        
         upDir = p.multiplyTransforms(p_sb, R_sb, [0,0,1], [0,0,0,1])[POSITION]
-        
-        # Check if z-value is below 0
         if upDir[2] < 0:
             self.termTracking['flippedCount'] += 1
         else:
