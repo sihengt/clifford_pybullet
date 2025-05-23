@@ -58,7 +58,7 @@ class SimController:
         self.termTracking = {'stopMoveCount': 0, 'flipped': 0}
         self.realtime = realtime
 
-    def controlLoopStep(self, driveCommand, useEulerState=False, useBodyVel=False):
+    def controlLoopStep(self, driveCommand, commandInRealUnits=False, useEulerState=False, useBodyVel=False):
         """
         For each step within the control loop, drives the robot by numStepsPerControl according to commands.
         This function stores prevState BEFORE controls, and nextState AFTER controls, with an optional stateProcessor 
@@ -76,8 +76,16 @@ class SimController:
         prevState = list(self.getRobotState(useBodyVel))
 
         # Drive / steer for numStepsPerControl steps within the simulator.
-        self.robot.driveAtVelocity(throttle)
-        self.robot.steerAtAngle(steering)
+        # If commandInRealUnits, the driveCommand is sent in m/s (velocity) and rads (steering)
+        if commandInRealUnits:
+            self.robot.driveAtVelocity(throttle)
+            self.robot.steerAtAngle(steering)
+        
+        # Otherwise, it's scaled from -1 to 1.
+        else:
+            self.robot.drive(throttle)
+            self.robot.steer(steering)
+
         for _ in range(self.simParams['numStepsPerControl']):
             self.stepSim()
 

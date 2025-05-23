@@ -354,7 +354,7 @@ class CliffordRobot(SimRobot):
         targetVelocities    = [drive_velocity] * len(driveJoints)
         velocityGains       = [velocityGain] * len(driveJoints)
         forces              = [maxForce] * len(driveJoints)
-                
+
         p.setJointMotorControlArray(
             self.robotID,
             driveJoints,
