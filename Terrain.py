@@ -33,10 +33,10 @@ class Terrain:
         grid_x = grid_x - grid_x.mean()
 
         grid_y = np.arange(map_length) * scale
-        grid_x = grid_y - grid_y.mean()
+        grid_y = grid_y - grid_y.mean()
 
         self.gridX, self.gridY = np.meshgrid(grid_x, grid_y, indexing='xy')
-
+        
         return self.gridX, self.gridY
 
     def setParams(self, terrainParams):

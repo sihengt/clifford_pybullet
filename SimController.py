@@ -38,7 +38,7 @@ class SimController:
         self.controlLoopStep([0,0])
 
         # pose[0] \in R^3 = height provided. Use height.
-        if len(pose[0])>2:
+        if len(pose[0]) > 2:
             safeFallHeight = pose[0][2]
         else:
             safeFallHeight = self.terrain.maxLocalHeight(pose[POSITION], 1) + 0.4
@@ -54,7 +54,7 @@ class SimController:
             fallSteps = int(np.ceil(self.simParams['resetFallTime']/self.simParams['simTimeStep']))
             for _ in range(fallSteps):
                 self.stepSim()
-        
+
         self.termTracking = {'stopMoveCount': 0, 'flipped': 0}
         self.realtime = realtime
 
@@ -92,7 +92,7 @@ class SimController:
         # Gets robot state after driving for number of steps.
         nextState = list(self.getRobotState(useBodyVel))
         termCheck = self.simTerminateCheck(nextState)
-        
+
         # Converts from quaternion to euler angles if useEulerState
         if useEulerState:
             prevState[1] = p.getEulerFromQuaternion(prevState[1])

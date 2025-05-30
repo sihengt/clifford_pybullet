@@ -10,7 +10,7 @@ import torch
 cliford_dir = os.path.join(os.path.dirname(__file__), "clifford")
 
 class CliffordRobot(SimRobot):
-    def __init__(self, robot_params, physicsClientId=0):
+    def __init__(self, robot_params=None, physicsClientId=0):
         super().__init__(physicsClientId)
         self.sdfPath = os.path.join(cliford_dir,'clifford.sdf')
         self.tireNames = ['frtire','fltire','brtire','bltire']
@@ -18,7 +18,8 @@ class CliffordRobot(SimRobot):
         self.wheel2TireJoints = ['frwheel2tire','flwheel2tire','brwheel2tire','blwheel2tire']
         self.axle2WheelJoints = ['axle2frwheel','axle2brwheel','axle2flwheel','axle2blwheel']
         
-        self.setParams(robot_params)
+        if robot_params is not None:
+            self.setParams(robot_params)
     
     @checkRobotExists
     def reset(self, pose=((0,0,0.25),(0,0,0,1))):
