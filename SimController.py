@@ -3,6 +3,7 @@ import numpy as np
 import pybullet as p
 import torch.nn.functional as F
 import torch
+from CameraRecorder import CameraRecorder
 
 POSITION = 0
 ORIENTATION = 1
@@ -26,6 +27,31 @@ class SimController:
         self.realtime = realtime
         self.stateProcessor = stateProcessor
         self.plottedLines = []
+        # self.rec = CameraRecorder()
+        # self.zoom_debug_camera()
+
+    # ----- one-off “zoom-out” helper -------------------------
+    def zoom_debug_camera(self, factor=1.0, physicsClientId=0):
+        """
+        Multiply the current camera distance by *factor* while
+        keeping the same yaw, pitch and target.
+        factor < 1  ➜ zoom-in,   factor > 1  ➜ zoom-out
+        """
+        # tuple of 13 items – see docs
+        cam_info = p.getDebugVisualizerCamera(physicsClientId=physicsClientId)
+
+        yaw      = cam_info[8]          # deg
+        pitch    = cam_info[9]          # deg
+        dist     = cam_info[10]         # metres
+        target   = cam_info[11]         # [x,y,z]
+
+        p.resetDebugVisualizerCamera(
+            cameraDistance     = 10.0,
+            cameraYaw          = 0,
+            cameraPitch        = pitch - 10,
+            cameraTargetPosition = target,
+            physicsClientId    = physicsClientId
+        )
 
     def resetRobot(self, doFall=True, pose=((0,0),(0,0,0,1))):
         """
@@ -33,6 +59,7 @@ class SimController:
         If no pose is provided, sets x, y to (0,0) and z to the height + 0.4m
         Also resets parameters used in simulation. 
         """
+        # self.zoom_debug_camera()
         realtime = self.realtime
         self.realtime = False
         self.controlLoopStep([0,0])
@@ -74,6 +101,8 @@ class SimController:
         
         # prevState: [pose, ori_quat, lin/ang velocity (R6), jointstate (empty unless specified).]
         prevState = list(self.getRobotState(useBodyVel))
+        
+        # prevState_body = list(self.getRobotState(True)) # [DEBUG] TODO: remove when done
 
         # Drive / steer for numStepsPerControl steps within the simulator.
         # If commandInRealUnits, the driveCommand is sent in m/s (velocity) and rads (steering)
@@ -100,16 +129,18 @@ class SimController:
         
         # Converting every element in list to lists (those returned by pybullet are tuples)
         prevState = [list(item) for item in prevState]
+        # prevState_body = [list(item) for item in prevState_body] # [DEBUG] TODO: remove when done
         nextState = [list(item) for item in nextState]
         
         # Flattening list
         prevState = [item for sublist in prevState for item in sublist]
+        # prevState_body = [item for sublist in prevState_body for item in sublist] # [DEBUG] TODO: remove when done
         nextState = [item for sublist in nextState for item in sublist]
         
         if self.stateProcessor is None:
             return prevState, driveCommand, nextState, termCheck
         else:
-            return self.stateProcessor(prevState), driveCommand, self.stateProcessor(nextState), termCheck
+            return self.stateProcessor(prevState), driveCommand, self.stateProcessor(nextState), termCheck#, self.stateProcessor(prevState_body) # [DEBUG] TODO: remove when done
 
     def getWeightDistribution(self):
         NORMAL_FORCE = 9
@@ -156,6 +187,7 @@ class SimController:
         Updates self.lastTimeStep to prevent simulation from attempting rapid catch-up.
         """
         p.stepSimulation(physicsClientId=self.physicsClientId)
+        # self.rec.grab()
         if self.camFollowBot:
             pos, _, heading, tilt = self.robot.getBasePositionOrientation(calcHeadingTilt=True)
             
@@ -176,6 +208,7 @@ class SimController:
             time.sleep(max(0, self.lastTimeStep + self.simParams['simTimeStep'] - currTime))
         self.lastTimeStep += self.simParams['simTimeStep']
         if hasattr(self,'screenRecorder'):
+            print("Here")
             self.screenRecorder.simStep()
 
     def simTerminateCheck(self, robotState):
