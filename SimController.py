@@ -3,7 +3,6 @@ import numpy as np
 import pybullet as p
 import torch.nn.functional as F
 import torch
-from CameraRecorder import CameraRecorder
 
 POSITION = 0
 ORIENTATION = 1
@@ -17,7 +16,13 @@ cam_params = {"pitch": -30, "dist": 0.8, "heading": -90}
 
 class SimController:
     # this class controls the simulation. It controls the terrain and robot, and returns data
-    def __init__(self, robot, terrain, simParams, camFollowBot=False, realtime=False, physicsClientId=0, stateProcessor=None):
+    def __init__(self, robot, terrain, simParams, camFollowBot=False, realtime=False, physicsClientId=0, stateProcessor=None,
+                 recorder=None):
+        """
+        Params:
+            recorder: optional object with a grab() method, called after every physics step
+                (e.g. CameraRecorder). None disables recording.
+        """
         self.camFollowBot = camFollowBot
         self.physicsClientId=physicsClientId
         self.terrain = terrain
@@ -27,8 +32,7 @@ class SimController:
         self.realtime = realtime
         self.stateProcessor = stateProcessor
         self.plottedLines = []
-        # self.rec = CameraRecorder()
-        # self.zoom_debug_camera()
+        self.recorder = recorder
 
     # ----- one-off “zoom-out” helper -------------------------
     def zoom_debug_camera(self, factor=1.0, physicsClientId=0):
@@ -59,7 +63,6 @@ class SimController:
         If no pose is provided, sets x, y to (0,0) and z to the height + 0.4m
         Also resets parameters used in simulation. 
         """
-        # self.zoom_debug_camera()
         realtime = self.realtime
         self.realtime = False
         self.controlLoopStep([0,0])
@@ -187,7 +190,8 @@ class SimController:
         Updates self.lastTimeStep to prevent simulation from attempting rapid catch-up.
         """
         p.stepSimulation(physicsClientId=self.physicsClientId)
-        # self.rec.grab()
+        if self.recorder is not None:
+            self.recorder.grab()
         if self.camFollowBot:
             pos, _, heading, tilt = self.robot.getBasePositionOrientation(calcHeadingTilt=True)
             
@@ -207,9 +211,6 @@ class SimController:
         if self.realtime:
             time.sleep(max(0, self.lastTimeStep + self.simParams['simTimeStep'] - currTime))
         self.lastTimeStep += self.simParams['simTimeStep']
-        if hasattr(self,'screenRecorder'):
-            print("Here")
-            self.screenRecorder.simStep()
 
     def simTerminateCheck(self, robotState):
         """
